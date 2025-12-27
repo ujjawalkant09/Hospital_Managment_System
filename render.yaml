@@ -1,6 +1,6 @@
 services:
   # ----------------------------
-  # FastAPI API
+  # FastAPI Web Service
   # ----------------------------
   - type: web
     name: hms-api
@@ -25,6 +25,7 @@ services:
           type: redis
           property: connectionString
 
+
   # ----------------------------
   # Celery Worker
   # ----------------------------
@@ -33,7 +34,7 @@ services:
     env: docker
     plan: free
     dockerfilePath: Dockerfile
-    command:
+    dockerCommand:
       - celery
       - -A
       - worker.celery.celery_app
@@ -57,6 +58,10 @@ services:
           type: redis
           property: connectionString
 
+
+# ----------------------------
+# Managed Databases
+# ----------------------------
 databases:
   - name: hms-postgres
     plan: free
