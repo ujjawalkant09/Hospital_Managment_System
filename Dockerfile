@@ -26,5 +26,5 @@ COPY . .
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Default command (overridden by docker-compose)
-CMD ["python", "-m", "app"]
+# Default command = API
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
