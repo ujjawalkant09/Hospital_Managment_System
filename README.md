@@ -12,3 +12,13 @@ Run FastAPI server
 uv run python run.py
 
 
+
+
+For test 
+
+
+docker-compose up -d
+docker-compose -p hms_test -f docker-compose.test.yml up -d
+
+
+

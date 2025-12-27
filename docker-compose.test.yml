@@ -1,0 +1,16 @@
+services:
+  postgres_test:
+    image: postgres:15
+    container_name: postgres_test_db
+    environment:
+      POSTGRES_USER: QA_Test
+      POSTGRES_PASSWORD: QA_Test
+      POSTGRES_DB: HMS_TEST
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./docker/postgres/init_test:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  postgres_test_data:

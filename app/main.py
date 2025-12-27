@@ -63,11 +63,6 @@ async def get_hospital_batch(
         select(JobStatus).where(JobStatus.batch_id == batch_id)
     )
     job = result.scalar_one_or_none()
-    total_hospital = job.total_hospitals
-    processed_hospital = job.processed_hospitals
-    failed_hospital = job.failed_hospitals
-    processing_time = job.processing_time_seconds or 0.0
-    sys_custom_fields = job.sys_custom_fields
 
     if job is None:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -79,11 +74,11 @@ async def get_hospital_batch(
 
     return {
         "batch_id": batch_id,
-        "total_hospitals": total_hospital,
-        "processed_hospitals": processed_hospital,
-        "failed_hospitals": failed_hospital,
-        "processing_time_seconds": processing_time,
-        "sys_custom_fields": sys_custom_fields,
+        "total_hospitals": job.total_hospitals,
+        "processed_hospitals": job.processed_hospitals,
+        "failed_hospitals": job.failed_hospitals,
+        "processing_time_seconds": job.processing_time_seconds or 0.0,
+        "sys_custom_fields": job.sys_custom_fields,
         "hospitals": hospitals,
     }
 
