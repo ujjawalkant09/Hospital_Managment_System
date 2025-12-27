@@ -3,10 +3,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from typing import AsyncGenerator
 import os
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://QA_Test:QA_Test@localhost:5432/HMS",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 

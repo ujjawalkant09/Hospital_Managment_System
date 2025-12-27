@@ -14,7 +14,6 @@ A small FastAPI service to manage hospitals and bulk hospital imports using CSV 
 - [Running the worker (Celery)](#running-the-worker-celery)
 - [Database migrations](#database-migrations)
 - [Testing](#testing)
-- [Contributing](#contributing)
 - [Notes & Tips](#notes--tips)
 
 ---
@@ -120,57 +119,203 @@ Validation checks ensure required columns exist, no unexpected columns, and that
 
 ## Setup - Local Development 🧰
 
-Prerequisites:
+**Overview:** Run the app and its dependencies locally using Docker Compose (recommended) or directly on your host for quick iteration.
 
-- Python 3.12+
+### Prerequisites
+
+- Python 3.12+ (for local development without Docker)
 - Docker & Docker Compose (recommended)
-- Redis and PostgreSQL (can be started with Docker Compose)
+- `uv` package manager or pip for dependency installation
 
-Quick start using Docker Compose:
+### Option A — Recommended: Using Docker Compose
+
+1. Create a `.env` file in the project root (example below) and make any necessary overrides.
+
+2. Start the dependencies:
 
 ```bash
-# start postgres + redis
+# Start Postgres + Redis
 docker-compose up -d
+```
 
-# create DB and run migrations (see section below)
-alembic upgrade head
+3. Build/run the app and worker (example dev compose snippet below — add to `docker-compose.override.yml` or your dev compose file):
 
-# install dependencies (optional if using Docker)
-# install dependencies using the `uv` package manager
-uv install
+```yaml
+version: '3.8'
+services:
+  web:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
 
-# run the app
+  worker:
+    build: .
+    command: celery -A worker.celery.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+```
+
+4. Run database migrations:
+
+```bash
+# When web service exists in your compose setup
+docker-compose run --rm web alembic upgrade head
+# or (if web is already running)
+docker-compose exec web alembic upgrade head
+```
+
+5. Visit the app at: `http://localhost:8000`
+
+### Option B — Run without Docker (host machine)
+
+1. Create and activate a virtual environment
+2. Install dependencies with `uv install` (or `pip install -r requirements.txt`)
+3. Set environment variables locally (see example `.env` below)
+4. Start Postgres/Redis (e.g., via Docker), run migrations, then:
+
+```bash
 python run.py
 # or
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Example environment variables (.env):
+### Example `.env` (development)
 
 ```
-DATABASE_URL=postgresql+asyncpg://QA_Test:QA_Test@postgres:5432/HMS
+DATABASE_URL=postgresql+asyncpg://{DATABASE_URL}
 REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/1
 ```
 
-> Note: the repository uses `DATABASE_URL` with a default pointing to `postgresql+asyncpg://QA_Test:QA_Test@localhost:5432/HMS` if not provided.
+> Tip: If you run a DB on your host, update `DATABASE_URL` to use `localhost` (e.g., `postgresql+asyncpg://QA_Test:QA_Test@localhost:5432/HMS`).
+
+### Tests
+
+Use the provided test compose file for DB integration tests:
+
+```bash
+docker-compose -p hms_test -f docker-compose.test.yml up -d
+pytest -q
+```
+
+### Troubleshooting
+
+- If you see DB connection errors, verify `DATABASE_URL` and that the `postgres` service is healthy: `docker-compose logs -f postgres`.
+- For migration issues: double-check alembic config, and run `alembic revision --autogenerate` and `alembic upgrade head`.
+- Use `docker-compose logs -f web` or `docker-compose logs -f worker` to inspect application and Celery logs.
 
 ---
 
+
 ## Setup - Production 🚀
 
-Recommendations for production deploy:
+**Goal:** Provide reliable, secure, and scalable deployment for the app and background workers.
 
-- Use a process manager (systemd) or container orchestration (Docker Swarm, Kubernetes)
-- Use Gunicorn with Uvicorn workers for robust deployments:
+### Recommended runtime
 
-```bash
-gunicorn -k uvicorn.workers.UvicornWorker app.main:app -w 4 -b 0.0.0.0:8000
+- Container Docker Compose with a process supervisor is recommended for production.
+- Use a managed/Postgres (RDS, Cloud SQL) and a managed Redis instance where possible for reliability.
+
+### Production Docker Compose (example)
+
+Create a production compose file (e.g., `docker-compose.prod.yml`) that uses pre-built images and environment secrets rather than mounting source code:
+
+```yaml
+version: '3.8'
+services:
+  web:
+    image: <your-registry>/hms:latest
+    command: gunicorn -k uvicorn.workers.UvicornWorker app.main:app -w 4 -b 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.prod
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    image: <your-registry>/hms:latest
+    command: celery -A worker.celery.celery_app worker --loglevel=info
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+      - postgres
 ```
 
-- Use a hosted Redis or Redis cluster for Celery broker/backend
-- Set environment variables for `DATABASE_URL` and Celery broker/backend
-- Run migrations with `alembic upgrade head` as part of your CI/CD
-- Use healthchecks and monitoring for Celery and the app
+### Building and migrating
+
+1. Build and push images in CI (tagged with commit SHA).
+2. In deploy pipeline, run migrations before switching traffic:
+
+```bash
+# Run against the running web container or as a one-off job
+docker-compose -f docker-compose.prod.yml run --rm web alembic upgrade head
+```
+
+### Deploy scripts (optional helpers)
+
+This repo includes two lightweight helper scripts to simplify deploy/start and stop operations when using the included `docker-compose.yml`:
+
+- `deploy.sh` — builds and starts services using Docker Compose. It expects an `.env.docker` file in the repository root (used as an env file) and runs `docker compose -f docker-compose.yml -p hospital_management_system up -d` after building images.
+- `stop.sh` — stops and removes the project containers using `docker compose -f docker-compose.yml -p hospital_management_system down`.
+
+Quick usage:
+
+```bash
+# Make scripts executable (first time)
+chmod +x deploy.sh stop.sh
+
+# Deploy / start services (requires .env.docker to exist)
+./deploy.sh
+
+# Stop services
+./stop.sh
+```
+
+Example `.env.docker` (place in project root):
+
+```
+# .env.docker (example)
+DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>:<port>/<db>
+REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/1
+```
+
+Notes:
+
+- `deploy.sh` validates that Docker and Docker Compose v2 are available and that `.env.docker` exists before proceeding.
+- The scripts use the compose project name `hospital_management_system`; if you need a different project name, either modify the scripts or run Docker Compose directly with your preferred `-p` value.
+
+### Security & best practices
+
+- **Do not** expose Postgres or Redis to the public internet. Use internal networking or VPC peering.
+- Use environment variables or secrets managers (Vault, Kubernetes secrets, AWS SSM) for credentials.
+- Monitor Celery and the web app with metrics and logs (Prometheus/Grafana, ELK, or a logging provider).
+- Set resource limits for containers and autoscaling rules for workers.
+
+### Healthchecks & zero-downtime
+
+- Use liveness/readiness probes (Kubernetes) or health checks in your orchestrator.
+- Use rolling deployments or blue-green strategies for zero-downtime deploys.
+
+---
+
+
 
 ---
 
@@ -219,29 +364,10 @@ There is also a `docker-compose.test.yml` to spin up test dependencies if needed
 docker-compose -p hms_test -f docker-compose.test.yml up -d
 ```
 
----
-
-## Contributing 🤝
-
-- Open an issue for bugs or feature requests
-- Write clear, focused PRs with tests for changes
-- Keep changes small and descriptive
-
----
 
 ## Notes & Tips 💡
 
-- CSV uploads are limited to 20 rows to keep background processing small and predictable.
+- CSV uploads are limited to 20 rows.
 - The Celery task `worker.tasks.process_bulk_hospitals` will update `JobStatus` rows with `processed_hospitals`, `failed_hospitals`, and `sys_custom_fields` which contain per-row errors when present.
 - If you want Celery to use a configurable broker/backed, update `worker/celery.py` to read `BROKER_URL`/`BACKEND_URL` from environment variables instead of the hard-coded Redis URLs.
 
----
-
-If you'd like, I can also:
-
-- Add example curl/httpie commands or Postman collection
-- Add a quick `docker-compose` service to run the web app and worker together
-
----
-
-**Happy hacking!**
