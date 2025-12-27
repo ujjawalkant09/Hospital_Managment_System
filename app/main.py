@@ -1,19 +1,17 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException,Depends
+from sqlalchemy import select, update, delete
 from uuid import uuid4
 import csv
 import io
-import time
+
 from .database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from .serializers import (
     HospitalCreate,
     HospitalResponse,
-    HospitalBatchResponse,
-    BulkResponse,
-    HospitalResult,
 )
 from models import Hospital, JobStatus
-from sqlalchemy import select, update, delete
+
 
 app = FastAPI()
 
@@ -56,7 +54,7 @@ async def get_hospital(
 
 
 
-@app.get("/hospitals/batch/{batch_id}",response_model=HospitalBatchResponse,)
+@app.get("/hospitals/batch/{batch_id}")
 async def get_hospital_batch(
     batch_id: str,
     db: AsyncSession = Depends(get_db),
@@ -65,6 +63,11 @@ async def get_hospital_batch(
         select(JobStatus).where(JobStatus.batch_id == batch_id)
     )
     job = result.scalar_one_or_none()
+    total_hospital = job.total_hospitals
+    processed_hospital = job.processed_hospitals
+    failed_hospital = job.failed_hospitals
+    processing_time = job.processing_time_seconds or 0.0
+    sys_custom_fields = job.sys_custom_fields
 
     if job is None:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -76,6 +79,11 @@ async def get_hospital_batch(
 
     return {
         "batch_id": batch_id,
+        "total_hospitals": total_hospital,
+        "processed_hospitals": processed_hospital,
+        "failed_hospitals": failed_hospital,
+        "processing_time_seconds": processing_time,
+        "sys_custom_fields": sys_custom_fields,
         "hospitals": hospitals,
     }
 
@@ -87,21 +95,48 @@ async def activate_batch(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(JobStatus).where(JobStatus.batch_id == batch_id)
+        select(JobStatus)
+        .where(JobStatus.batch_id == batch_id)
+        .with_for_update()
     )
     job = result.scalar_one_or_none()
+
     if job is None:
         raise HTTPException(status_code=404, detail="Batch not found")
+
+    sys_custom_fields = dict(job.sys_custom_fields or {})
+
+    if sys_custom_fields.get("batch_activated"):
+        raise HTTPException(
+            status_code=400,
+            detail="Batch already activated"
+        )
+
+    sys_custom_fields["batch_activated"] = True
+
+    await db.execute(
+        update(JobStatus)
+        .where(JobStatus.batch_id == batch_id)
+        .values(sys_custom_fields=sys_custom_fields)
+        .execution_options(synchronize_session=False)
+    )
+
     await db.execute(
         update(Hospital)
         .where(Hospital.creation_batch_id == batch_id)
         .values(is_active=True)
+        .execution_options(synchronize_session=False)
     )
 
     await db.commit()
+
     return {
         "batch_id": batch_id,
-        "status": "activated",
+        "total_hospitals": job.total_hospitals,
+        "processed_hospitals": job.processed_hospitals,
+        "failed_hospitals": job.failed_hospitals,
+        "processing_time_seconds": job.processing_time_seconds or 0.0,
+        "batch_activated": sys_custom_fields["batch_activated"],
     }
 
 

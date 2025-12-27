@@ -17,10 +17,7 @@ class JobStatus(Base):
     status = Column(String(50), default="IN_PROGRESS")
     processing_time_seconds = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    sys_custom_fields = Column( MutableDict.as_mutable(JSONB), nullable=False, default=dict,server_default=text("'{}'::jsonb") 
-)
-
-
+    sys_custom_fields = Column( MutableDict.as_mutable(JSONB), nullable=False, default=dict,server_default=text("'{}'::jsonb"))
     hospitals = relationship(
                 "Hospital",
                 primaryjoin="JobStatus.batch_id == Hospital.creation_batch_id",

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 
 
@@ -24,26 +24,3 @@ class HospitalResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-
-class HospitalBatchResponse(BaseModel):
-    batch_id: str
-    hospitals: List[HospitalResponse]
-
-
-class HospitalResult(BaseModel):
-    row: int
-    hospital_id: Optional[int]
-    name: str
-    status: str
-
-
-class BulkResponse(BaseModel):
-    batch_id: str
-    total_hospitals: int
-    processed_hospitals: int
-    failed_hospitals: int
-    processing_time_seconds: float
-    activated: bool
-    hospitals: List[HospitalResult]
