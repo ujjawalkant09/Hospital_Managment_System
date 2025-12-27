@@ -11,6 +11,7 @@ from .serializers import (
     HospitalResponse,
 )
 from models import Hospital, JobStatus
+from .utils import validate_csv_text
 
 
 app = FastAPI()
@@ -165,19 +166,36 @@ async def create_hospitals_bulk(
     db: AsyncSession = Depends(get_db),
 ):
     if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+        raise HTTPException(
+            status_code=400,
+            detail="Only CSV files are allowed"
+        )
 
     content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded CSV file is empty"
+        )
+
     csv_text = content.decode("utf-8")
 
-    reader = csv.DictReader(io.StringIO(csv_text))
-    rows = list(reader)
+    rows, errors = validate_csv_text(csv_text)
 
-    if not rows:
-        raise HTTPException(status_code=400, detail="Empty CSV")
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "CSV validation failed",
+                "errors": errors,
+            }
+        )
 
     if len(rows) > 20:
-        raise HTTPException(status_code=400, detail="Max 20 hospitals allowed")
+        raise HTTPException(
+            status_code=400,
+            detail="Max 20 hospitals allowed"
+        )
 
     batch_id = str(uuid4())
     job = JobStatus(
@@ -186,7 +204,7 @@ async def create_hospitals_bulk(
         processed_hospitals=0,
         failed_hospitals=0,
         status="IN_PROGRESS",
-        sys_custom_fields={},  
+        sys_custom_fields={},
     )
 
     db.add(job)
@@ -200,4 +218,47 @@ async def create_hospitals_bulk(
         "status": "IN_PROGRESS",
         "total_hospitals": len(rows),
         "message": "Bulk processing started. Use batch_id to track progress."
+    }
+
+
+
+@app.post("/hospitals/bulk/validate")
+async def validate_hospital_csv(
+    file: UploadFile = File(...)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only CSV files are allowed"
+        )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded CSV file is empty"
+        )
+
+    csv_text = content.decode("utf-8")
+
+    rows, errors = validate_csv_text(csv_text)
+
+    if len(rows) > 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Max 20 hospitals allowed"
+        )
+
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "CSV validation failed",
+                "errors": errors,
+            }
+        )
+
+    return {
+        "message": "CSV is valid",
+        "total_rows": len(rows),
     }

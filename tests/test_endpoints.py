@@ -92,11 +92,13 @@ async def test_bulk_create_success(override_get_db, monkeypatch):
     )
 
     csv_content = b"""name,address,phone
-                        A,Addr A,1
-                        B,Addr B,2
-                        """
+A,Addr A,1
+B,Addr B,2
+"""
 
-    files = {"file": ("hospitals.csv", io.BytesIO(csv_content), "text/csv")}
+    files = {
+        "file": ("hospitals.csv", io.BytesIO(csv_content), "text/csv")
+    }
 
     async with get_client() as ac:
         r = await ac.post("/hospitals/bulk", files=files)
