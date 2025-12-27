@@ -1,28 +1,22 @@
 import io
 import pytest
-from httpx import AsyncClient, ASGITransport
+
 from models import Hospital, JobStatus
-
-from app.main import app
-
-
-def get_client():
-    return AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    )
+from tests.utils import get_client
 
 
 @pytest.mark.asyncio
 async def test_create_hospital(override_get_db):
     async with get_client() as ac:
-        payload = {
-            "name": "Test Hospital",
-            "address": "123 Test St",
-            "phone": "111222333",
-            "is_active": True,
-        }
-        r = await ac.post("/hospitals", json=payload)
+        r = await ac.post(
+            "/hospitals",
+            json={
+                "name": "Test Hospital",
+                "address": "123 Test St",
+                "phone": "111222333",
+                "is_active": True,
+            },
+        )
         assert r.status_code == 201
 
 
@@ -51,7 +45,7 @@ async def test_get_hospital_found_and_not_found(override_get_db):
 
 @pytest.mark.asyncio
 async def test_get_hospital_batch_found(override_get_db):
-    db = override_get_db  
+    db = override_get_db
 
     job = JobStatus(
         batch_id="batch-1",
@@ -61,7 +55,6 @@ async def test_get_hospital_batch_found(override_get_db):
     )
     db.add(job)
     await db.commit()
-    await db.refresh(job)
 
     hospital = Hospital(
         name="Test Hospital",
@@ -79,7 +72,6 @@ async def test_get_hospital_batch_found(override_get_db):
     data = r.json()
     assert data["batch_id"] == "batch-1"
     assert len(data["hospitals"]) == 1
-
 
 
 @pytest.mark.asyncio
@@ -100,16 +92,17 @@ async def test_bulk_create_success(override_get_db, monkeypatch):
     )
 
     csv_content = b"""name,address,phone
-A,Addr A,1
-B,Addr B,2
-"""
+                        A,Addr A,1
+                        B,Addr B,2
+                        """
 
     files = {"file": ("hospitals.csv", io.BytesIO(csv_content), "text/csv")}
 
     async with get_client() as ac:
         r = await ac.post("/hospitals/bulk", files=files)
-        assert r.status_code == 201
-        assert r.json()["status"] == "IN_PROGRESS"
+
+    assert r.status_code == 201
+    assert r.json()["status"] == "IN_PROGRESS"
 
 
 @pytest.mark.asyncio
@@ -117,4 +110,4 @@ async def test_bulk_create_errors(override_get_db):
     async with get_client() as ac:
         files = {"file": ("bad.txt", io.BytesIO(b"x,y"), "text/plain")}
         r = await ac.post("/hospitals/bulk", files=files)
-        assert r.status_code == 400
+    assert r.status_code == 400
