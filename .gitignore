@@ -10,6 +10,7 @@ wheels/
 .venv
 venv/
 .env
+.env.docker
 
 
 .DS_Store
@@ -17,3 +18,4 @@ venv/
 .idea/
 .pem
 
+HMS_KEY_PAIR.pem

@@ -12,4 +12,5 @@ pytest_cache/
 .mypy_cache/
 
 postgres_data/
-.pem
+
+HMS_KEY_PAIR.pem
