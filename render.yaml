@@ -54,14 +54,19 @@ services:
           property: connectionString
 
 
+  # ----------------------------
+  # Redis (Managed)
+  # ----------------------------
+  - type: redis
+    name: hms-redis
+    plan: free
+
+
 # ----------------------------
-# Managed Databases
+# PostgreSQL (Managed)
 # ----------------------------
 databases:
   - name: hms-postgres
     plan: free
     databaseName: hms
     user: hms_user
-
-  - name: hms-redis
-    plan: free
