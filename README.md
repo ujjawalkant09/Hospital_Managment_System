@@ -6,15 +6,18 @@ A small FastAPI service to manage hospitals and bulk hospital imports using CSV 
 
 ## Table of Contents
 
-- [Features](#features)
-- [Endpoints](#endpoints)
-- [CSV format](#csv-format)
-- [Setup - Local Development](#setup---local-development)
-- [Setup - Production](#setup---production)
-- [Running the worker (Celery)](#running-the-worker-celery)
-- [Database migrations](#database-migrations)
-- [Testing](#testing)
-- [Notes & Tips](#notes--tips)
+- [Hospital Management System](#hospital-management-system-)
+- [Features](#features-)
+- [Endpoints](#endpoints-)
+- [CSV format](#csv-format-)
+- [Setup - Local Development](#setup---local-development-)
+  - [Running the worker (Celery)](#running-the-worker-celery-)
+- [Database migrations](#database-migrations-)
+- [Run the backend server](#run-the-backend-server)
+- [Testing](#testing-)
+- [Deploy scripts](#deploy-scripts)
+- [Notes & Tips](#notes--tips-)
+
 
 ---
 
@@ -127,8 +130,6 @@ Validation checks ensure required columns exist, no unexpected columns, and that
 - Docker & Docker Compose (recommended)
 - `uv` package manager or pip for dependency installation
 
-### Option A — Recommended: Using Docker Compose
-
 1. Create a `.env` file in the project root (example below) and make any necessary overrides.
 
 2. Start the dependencies:
@@ -140,14 +141,11 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ## Running the worker (Celery) 🐝
 
-Start a worker to process uploaded CSVs:
-
 ```bash
 # local (requires redis running)
 celery -A worker.celery.celery_app worker --loglevel=info
 ```
 
-If using Docker Compose, ensure the worker service can connect to the same Redis instance.
 
 ---
 
@@ -166,6 +164,14 @@ alembic upgrade head
 Check `alembic/versions` for the existing migration files.
 
 ---
+
+## Run the backend server 
+
+```bash
+python run.py
+# or
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
 ## Testing ✅
 
@@ -191,18 +197,6 @@ docker-compose -p hms_test -f docker-compose.test.yml down
 
 5. Visit the app at: `http://localhost:8000`
 
-### Option B — Run without Docker (host machine)
-
-1. Create and activate a virtual environment
-2. Install dependencies with `uv install` (or `pip install -r requirements.txt`)
-3. Set environment variables locally (see example `.env` below)
-4. Start Postgres/Redis (e.g., via Docker), run migrations, then:
-
-```bash
-python run.py
-# or
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
 
 ### Example `.env` (development)
 
