@@ -34,12 +34,7 @@ services:
     env: docker
     plan: free
     dockerfilePath: Dockerfile
-    dockerCommand:
-      - celery
-      - -A
-      - worker.celery.celery_app
-      - worker
-      - --loglevel=info
+    dockerCommand: "celery -A worker.celery.celery_app worker --loglevel=info"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
