@@ -60,6 +60,9 @@ services:
   - type: redis
     name: hms-redis
     plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow all
 
 
 # ----------------------------
